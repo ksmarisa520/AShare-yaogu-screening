@@ -14,8 +14,8 @@
 零依赖，只需要 Python 3.8+（标准库，不用 `pip install`）。
 
 ```bash
-git clone https://github.com/ksmarisa520/yaogu-screening.git
-cd yaogu-screening
+git clone https://github.com/ksmarisa520/AShare-yaogu-screening.git
+cd AShare-yaogu-screening
 
 # 1) 扫今天的涨停池，按评分排序，标出次日候选 / 持仓退出预警
 python3 scripts/scan_zt_pool.py
@@ -274,6 +274,49 @@ yaogu-screening/
     ├── 04_reverse_backtest_2026-10.md ← 跌停侧能不能做、只有恐慌日成立
     ├── 05_revision_log_2026-10.md     ← 技能卡 5 条修订及落地状态
     └── 06_case_600661.md              ← 公司在涨停板上卖自己回购股票的全案
+```
+
+---
+
+## 关联说明：文档 · 脚本 · 数据 怎么对上
+
+这个库里的每个数字都能追到「哪个脚本 + 哪份数据」跑出来的。想核对任何一句话，照这张表走：
+
+| 文档 | 产出它的脚本 | 读的数据 | 复现命令 |
+|---|---|---|---|
+| `docs/01` 基准率表 | `scripts/base_rates.py` | `data/zt_study.json` | `python3 scripts/base_rates.py --offline` |
+| `docs/03` 涨停正向回测 | `backtest/zt_backtest.py` | `data/zt_study.json` + `zt_kl.json` + `bench_oc.json` | `python3 backtest/zt_backtest.py` |
+| `docs/04` 跌停反向回测 | `backtest/dt_backtest.py` | `data/dt_pools.json` + `kl_store.json` + `bench.json` + `bench_oc.json` | `python3 backtest/dt_backtest.py` |
+| `docs/05` 修订记录 | 人工整理 | 同上两份回测的明细 | 见 `data/zt_obs.json`、`dt_obs.json` |
+| `docs/06` 600661 案例 | `scripts/yaogu_pick.py` + 公告正文接口 | 实时抓取（无快照） | `python3 scripts/yaogu_pick.py 20261021` |
+| `SKILL.md` / 本 README 的表格 | 全部来自上面几份 | — | — |
+
+**层级关系**：`SKILL.md` 是给 Agent 读的执行卡（带 frontmatter，可直接被 skill loader 加载）；本 README 是给人的门面；`docs/` 是论证过程；`scripts/` 是每日可跑的工具；`backtest/` 是一次性研究代码；`data/` 是这两者共用的冻结底稿。
+
+**数据来源**（全部是公开行情接口，无需账号）：
+
+| 用途 | 接口 |
+|---|---|
+| 涨停池 / 炸板池 / 跌停池 | `push2ex.eastmoney.com/getTopicZTPool` / `ZBPool` / `DTPool` |
+| 个股日 K（含开盘价） | `push2his.eastmoney.com/api/qt/stock/kline/get`，限流时回落 `web.ifzq.gtimg.cn/appstock/app/fqkline/get` |
+| 指数日线（基准） | 同上，国证2000 = `sz399303`，中证全指 = `sh000985` |
+| 公告列表 / 正文 | `np-anotice-stock.eastmoney.com/api/security/ann`、`np-cnotice-stock.eastmoney.com/api/content/ann` |
+| 龙虎榜 / 财报预约 | `datacenter-web.eastmoney.com/api/data/v1/get` |
+
+### 关于数据脱敏（本库为公开仓库）
+
+`data/` 里的 8 个 JSON 都是**公开行情快照**，已逐个核对：
+
+- 字段只有：股票代码、名称、日期、价格、涨跌幅、成交额、换手率、流通市值、封单金额、连板数、封板时间、行业板块，以及由它们算出来的派生指标（超额收益、隔夜缺口、箱体宽度等）。
+- **不含**：账号、cookie、token、请求头、任何登录态；不含个人持仓、委托、成交记录；不含内网地址、主机名、本地路径；不含任何长度超过 20 字符的自由文本（公告标题、龙虎榜席位说明等一律没落盘）。
+- 脚本里的 `ut` 常量是东方财富 Web 客户端公开的固定参数，不是账号凭据，任何匿名浏览器访问同一接口都会带上它。
+- 人名、席位、评论一律不在数据里；`docs/` 里出现的个股只是**公开行情复盘对象**，作者不持有、不推荐。
+
+想自己验一遍：
+
+```bash
+grep -rilE "cookie|token|password|secret|api[_-]?key|authorization|192\.168\.|/home/" data/
+# 无输出即通过
 ```
 
 ---
