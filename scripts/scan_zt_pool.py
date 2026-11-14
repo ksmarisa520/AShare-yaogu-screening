@@ -32,7 +32,12 @@ from collections import Counter
 UA = {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://quote.eastmoney.com/'}
 UT = '7eea3edcaed734bea9cbfc24409ed989'
 POOL_URL = ('https://push2ex.eastmoney.com/%s?ut=%s&dpt=wz.ztzt'
-            '&Pageindex=0&pagesize=500&sort=fbt%%3Aasc&date=%s')
+            '&Pageindex=0&pagesize=500&sort=%s&date=%s')
+# The limit-down pool only answers to sort=fund:asc. Reusing the limit-up
+# sort (fbt:asc) returns {"tc": N, "pool": []} -- a total with an empty pool,
+# which looks like a dead endpoint but is just the wrong sort key.
+SORTS = {'getTopicZTPool': 'fbt%3Aasc', 'getTopicZBPool': 'fbt%3Aasc',
+         'getTopicDTPool': 'fund%3Aasc'}
 
 # Base rates measured on 2026-09-23 .. 2026-10-20 (14 trading days).
 BENCH = ('benchmarks (14 trading days, 2026-09-23..2026-10-20): '
@@ -58,7 +63,7 @@ def jget(url, tries=3):
 
 
 def pool(api, date):
-    d = jget(POOL_URL % (api, UT, date)).get('data') or {}
+    d = jget(POOL_URL % (api, UT, SORTS.get(api, 'fbt%3Aasc'), date)).get('data') or {}
     return d.get('pool') or []
 
 
@@ -168,7 +173,15 @@ def score(x, sector_count):
         grade = 'C'
     else:
         grade = 'D'
-    return s, grade, ','.join(flags) or '-'
+
+    # Seal strength (fund / float mcap) says "how strong"; seal order vs traded
+    # value (fund / amount) says "how likely the next session opens at the
+    # limit, i.e. how unlikely you are to get filled". They are correlated but
+    # answer different questions -- see docs/03_forward_backtest_2026-10.md.
+    amt = fnum(x.get('amount')) / 1e8
+    seal_amt = (fund / amt * 100) if amt else 0.0
+
+    return s, grade, ','.join(flags) or '-', round(seal_amt, 1)
 
 
 # --------------------------------------------------------------------------- #
@@ -179,7 +192,7 @@ def build_rows(zt):
     rows = []
     for x in zt:
         sector = x.get('hybk', '') or ''
-        sc, grade, flags = score(x, hy.get(sector, 1))
+        sc, grade, flags, seal_amt = score(x, hy.get(sector, 1))
         ltsz = fnum(x.get('ltsz')) / 1e8
         seal = (fnum(x.get('fund')) / 1e8 / ltsz * 100) if ltsz else 0.0
         rows.append({
@@ -189,6 +202,7 @@ def build_rows(zt):
             'seal_time': hhmm(fnum(x.get('fbt'))),
             'turnover': round(fnum(x.get('hs')), 2),
             'seal_pct': round(seal, 2),
+            'seal_amt_pct': seal_amt,
             'float_yi': round(ltsz, 1),
             'broke': int(fnum(x.get('zbc'))),
             'sector': sector,
@@ -202,17 +216,17 @@ def build_rows(zt):
 
 
 def print_table(rows, top):
-    hdr = ('%-4s %-6s %-4s %-7s %-7s %-7s %-9s %-4s %-14s %-3s %-7s %s'
-           % ('GRD', 'SCORE', 'BRD', 'SEAL@', 'TURN%', 'SEAL%', 'FLOAT',
-              'BRK', 'SECTOR', 'N', 'CODE', 'NAME'))
+    hdr = ('%-4s %-6s %-4s %-7s %-7s %-7s %-7s %-9s %-4s %-14s %-3s %-7s %s'
+           % ('GRD', 'SCORE', 'BRD', 'SEAL@', 'TURN%', 'SEAL%', 'SAMT%',
+              'FLOAT', 'BRK', 'SECTOR', 'N', 'CODE', 'NAME'))
     print(hdr)
-    print('-' * 100)
+    print('-' * 108)
     for r in rows[:top]:
-        print('%-4s %-6s %-4d %-7s %-7.1f %-7.2f %-9s %-4d %s %-3d %-7s %s'
+        print('%-4s %-6s %-4d %-7s %-7.1f %-7.2f %-7.1f %-9s %-4d %s %-3d %-7s %s'
               % (r['grade'], '%+d' % r['score'], r['boards'], r['seal_time'],
-                 r['turnover'], r['seal_pct'], '%.1fYi' % r['float_yi'],
-                 r['broke'], fit(r['sector'], 14), r['sector_n'],
-                 r['code'], r['name']))
+                 r['turnover'], r['seal_pct'], r['seal_amt_pct'],
+                 '%.1fYi' % r['float_yi'], r['broke'], fit(r['sector'], 14),
+                 r['sector_n'], r['code'], r['name']))
         if r['flags'] != '-':
             print('      flags: %s' % r['flags'])
 
@@ -241,11 +255,11 @@ def main(argv=None):
                          'retention window of the Eastmoney pool API).' % date)
 
     broke_rate = len(zb) / float(len(zt) + len(zb)) * 100 if (zt or zb) else 0.0
-    print('=' * 100)
+    print('=' * 108)
     print('DATE %s | limit-up %d | broken %d | broke-rate %.1f%% | limit-down %d'
           % (date, len(zt), len(zb), broke_rate, len(dt)))
     print(BENCH)
-    print('=' * 100)
+    print('=' * 108)
 
     rows = build_rows(zt)
     print_table(rows, args.top)

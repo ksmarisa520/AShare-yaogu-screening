@@ -37,15 +37,22 @@ from collections import Counter, defaultdict
 UA = {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://quote.eastmoney.com/'}
 UT = '7eea3edcaed734bea9cbfc24409ed989'
 POOL_URL = ('https://push2ex.eastmoney.com/%s?ut=%s&dpt=wz.ztzt'
-            '&Pageindex=0&pagesize=400&sort=fbt%%3Aasc&date=%s')
+            '&Pageindex=0&pagesize=400&sort=%s&date=%s')
+# The limit-down pool only answers to sort=fund:asc. Reusing the limit-up sort
+# (fbt:asc) returns {"tc": N, "pool": []} -- a total with an empty pool, which
+# looks like a dead endpoint but is just the wrong sort key. This is why the
+# first version of this study reported "limit-down pool is always empty".
+SORTS = {'getTopicZTPool': 'fbt%3Aasc', 'getTopicZBPool': 'fbt%3Aasc',
+         'getTopicDTPool': 'fund%3Aasc'}
 KLINE_URL = ('https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=1.000001'
              '&fields1=f1,f2,f3&fields2=f51,f52,f53&klt=101&fqt=1'
              '&beg=%s&end=%s')
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SEED_PATH = os.path.join(REPO_ROOT, 'data', 'zt_study.json')
-DEFAULT_CACHE = os.path.join(os.path.expanduser('~'), '.cache', 'yaogu',
-                             'zt_study.json')
+CACHE_DIR = (os.environ.get('YAOGU_CACHE_DIR')
+             or os.path.join(os.path.expanduser('~'), '.cache', 'yaogu'))
+DEFAULT_CACHE = os.path.join(CACHE_DIR, 'zt_study.json')
 
 LABELS = {1: 'first-board', 2: '2-board', 3: '3-board', 4: '4-board',
           5: '5-board+'}
@@ -84,8 +91,8 @@ def fetch(dates):
     for d in dates:
         rec = {}
         for tag, api in apis:
-            rec[tag] = ((jget(POOL_URL % (api, UT, d)).get('data') or {})
-                        .get('pool') or [])
+            rec[tag] = ((jget(POOL_URL % (api, UT, SORTS[api], d)).get('data')
+                         or {}).get('pool') or [])
         out[d] = rec
         print('  fetched %s  zt=%-3d zb=%-3d dt=%-3d'
               % (d, len(rec['zt']), len(rec['zb']), len(rec['dt'])), flush=True)
@@ -254,10 +261,30 @@ def run(D, beg, end, end_exclusive=None):
     print('\nTABLE 1.4  names that BROKE today: n=%d, next-day re-limit %.1f%%'
           % (len(zb_next), sum(zb_next) / float(len(zb_next)) * 100))
 
+    # TABLE 1.5 -- tail risk. Needs the limit-down pool, which only exists for
+    # days fetched with sort=fund:asc (the shipped seed predates that fix).
+    print('\nTABLE 1.5  tail risk: today limit-up -> tomorrow limit-down')
+    pairs = [(d, valid[i + 1]) for i, d in enumerate(valid[:-1])
+             if D[valid[i + 1]].get('dt')]
+    if not pairs:
+        print('  no limit-down pool in cache for the next-day legs '
+              '(run online, or the days were fetched with the wrong sort key)')
+    else:
+        zt_hit = [1 if c in codes(nd, 'dt') else 0
+                  for d, nd in pairs for c in codes(d)]
+        zb_hit = [1 if c in codes(nd, 'dt') else 0
+                  for d, nd in pairs for c in codes(d, 'zb')]
+        for lab, bag in (('all limit-up names', zt_hit),
+                         ('names that broke today', zb_hit)):
+            if bag:
+                print('  %-26s n=%4d  next-day limit-down %5.1f%%'
+                      % (lab, len(bag), sum(bag) / float(len(bag)) * 100))
+
     print('\nNOTE: short window and single market regime; overlapping streaks '
           'inflate the nominal n. Treat these as directional odds, NOT win '
-          'rates. Limit-down pool returns empty for this API, so tail risk '
-          '(next-day limit-down) cannot be measured here.')
+          'rates. For tradability (can you actually get filled at the limit?) '
+          'see docs/03_forward_backtest_2026-10.md -- base rates alone '
+          'overstate what a real order can capture.')
 
 
 # --------------------------------------------------------------------------- #
