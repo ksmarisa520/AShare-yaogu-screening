@@ -18,6 +18,7 @@ Cache resolution (first hit wins for writes, all hits are merged for reads):
     2. $YAOGU_CACHE
     3. ~/.cache/yaogu/zt_study.json
     4. data/zt_study.json shipped in this repo (read-only seed)
+    5. data/dt_pools.json shipped in this repo (limit-down pools only)
 
 The seed is never overwritten: the historical window it contains is already
 outside the ~1 month retention of the Eastmoney pool API, so it cannot be
@@ -50,6 +51,10 @@ KLINE_URL = ('https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=1.0000
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SEED_PATH = os.path.join(REPO_ROOT, 'data', 'zt_study.json')
+# The limit-down pools live in their own file (they were collected separately,
+# after the sort=fund:asc fix). Without merging them in, TABLE 1.5 silently
+# degrades to "no limit-down pool in cache" on a clean checkout.
+DT_SEED_PATH = os.path.join(REPO_ROOT, 'data', 'dt_pools.json')
 CACHE_DIR = (os.environ.get('YAOGU_CACHE_DIR')
              or os.path.join(os.path.expanduser('~'), '.cache', 'yaogu'))
 DEFAULT_CACHE = os.path.join(CACHE_DIR, 'zt_study.json')
@@ -99,6 +104,33 @@ def fetch(dates):
     return out
 
 
+def _merge_dt_seed(merged, path):
+    """Fold data/dt_pools.json ({day: [rows]}) into the merged dict as `dt`.
+
+    Only fills days that have no limit-down pool yet, so the shipped seed and
+    the user cache always keep precedence.
+    """
+    if not os.path.exists(path):
+        return 0
+    try:
+        with open(path, encoding='utf-8') as fh:
+            data = json.load(fh)
+    except (OSError, ValueError) as exc:
+        print('WARN: cannot read %s (%s), skipped' % (path, exc))
+        return 0
+    filled = 0
+    for day, rows in data.items():
+        if not isinstance(rows, list) or not rows:
+            continue
+        rec = merged.setdefault(day, {})
+        if not rec.get('dt'):
+            rec['dt'] = rows
+            filled += 1
+    print('  loaded dt    %s  (%d days with a limit-down pool)'
+          % (path, filled))
+    return filled
+
+
 def load_cache(cache_path):
     """Merge the shipped seed with the user cache (user cache wins per day)."""
     merged = {}
@@ -116,6 +148,7 @@ def load_cache(cache_path):
         merged.update(data)
         print('  loaded %-5s %s  (%d days, %d with data)'
               % (tag, path, len(data), n_valid))
+    _merge_dt_seed(merged, DT_SEED_PATH)
     return merged
 
 
@@ -261,14 +294,15 @@ def run(D, beg, end, end_exclusive=None):
     print('\nTABLE 1.4  names that BROKE today: n=%d, next-day re-limit %.1f%%'
           % (len(zb_next), sum(zb_next) / float(len(zb_next)) * 100))
 
-    # TABLE 1.5 -- tail risk. Needs the limit-down pool, which only exists for
-    # days fetched with sort=fund:asc (the shipped seed predates that fix).
+    # TABLE 1.5 -- tail risk. Needs the limit-down pool. Those pools were
+    # collected separately (after the sort=fund:asc fix) and ship as
+    # data/dt_pools.json, which load_cache() folds in as `dt`.
     print('\nTABLE 1.5  tail risk: today limit-up -> tomorrow limit-down')
     pairs = [(d, valid[i + 1]) for i, d in enumerate(valid[:-1])
              if D[valid[i + 1]].get('dt')]
     if not pairs:
-        print('  no limit-down pool in cache for the next-day legs '
-              '(run online, or the days were fetched with the wrong sort key)')
+        print('  no limit-down pool available for the next-day legs '
+              '(data/dt_pools.json missing, or run with --refetch)')
     else:
         zt_hit = [1 if c in codes(nd, 'dt') else 0
                   for d, nd in pairs for c in codes(d)]

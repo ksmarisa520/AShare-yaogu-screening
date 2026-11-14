@@ -284,7 +284,7 @@ yaogu-screening/
 
 | 文档 | 产出它的脚本 | 读的数据 | 复现命令 |
 |---|---|---|---|
-| `docs/01` 基准率表 | `scripts/base_rates.py` | `data/zt_study.json` | `python3 scripts/base_rates.py --offline` |
+| `docs/01` 基准率表（含 TABLE 1.5 次日跌停） | `scripts/base_rates.py` | `data/zt_study.json` + `dt_pools.json` | `python3 scripts/base_rates.py --offline` |
 | `docs/03` 涨停正向回测 | `backtest/zt_backtest.py` | `data/zt_study.json` + `zt_kl.json` + `bench_oc.json` | `python3 backtest/zt_backtest.py` |
 | `docs/04` 跌停反向回测 | `backtest/dt_backtest.py` | `data/dt_pools.json` + `kl_store.json` + `bench.json` + `bench_oc.json` | `python3 backtest/dt_backtest.py` |
 | `docs/05` 修订记录 | 人工整理 | 同上两份回测的明细 | 见 `data/zt_obs.json`、`dt_obs.json` |

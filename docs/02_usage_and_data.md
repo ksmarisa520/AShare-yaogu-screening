@@ -163,8 +163,9 @@ python3 scripts/base_rates.py 20260901 20261113 --exclude 20261021
 - 已知的盘中快照日（脚本常量 `INTRADAY_SNAPSHOT_DAYS`，当前只有 `20261021`）自动剔除，会打印一行 `dropping known intraday snapshot day(s)`。
 - 只抓缓存里没有的交易日，已有的不重复请求（约 3 个请求/交易日，1 秒间隔）。
 - **跌停池用 `sort=fund:asc`**，不是涨停池那个 `fbt:asc`。用错会静默返回空 pool。
+- 读缓存时会额外把 `data/dt_pools.json` 合并成 `dt` 层（只填没有跌停池的日子，不覆盖种子和用户缓存）。这一步不做的话，`zt_study.json` 里的 `dt` 是空的，**TABLE 1.5 次日跌停率会静默失效**。
 
-所以在全新克隆上直接跑 `python3 scripts/base_rates.py --offline`，得到的窗口就是 **20260923 → 20261020 共 14 天**，与 `docs/01_base_rate_study_2026-10.md` 逐格一致。
+所以在全新克隆上直接跑 `python3 scripts/base_rates.py --offline`，得到的窗口就是 **20260923 → 20261020 共 14 天**，与 `docs/01_base_rate_study_2026-10.md` 逐格一致（含 TABLE 1.5：涨停股次日跌停 5.5%/n=649、炸板股 6.6%/n=258）。
 
 ---
 
@@ -248,7 +249,7 @@ python3 scripts/base_rates.py $(date -d '-3 days' +%Y%m%d) $(date +%Y%m%d)
 | 文件 | 大小 | 内容 |
 |---|---|---|
 | `zt_study.json` | 320 KB | `{"YYYYMMDD": {"zt": [...], "zb": [...], "dt": [...]}}`，96 个交易日 key（2026-06-01 → 2026-10-21），其中 **15 天有数据**。其余 81 天是全空占位，正是「API 只保留约 1 个月」的直接证据。`dt` 数组在这份快照里是空的（抓的时候还没发现排序字段的坑）。 |
-| `dt_pools.json` | 66 KB | 跌停池快照，15 个跌停日，用正确的 `sort=fund:asc` 抓的 |
+| `dt_pools.json` | 66 KB | 跌停池快照，15 个跌停日，用正确的 `sort=fund:asc` 抓的。`base_rates.py` 读缓存时自动把它合并成 `dt` 层，TABLE 1.5 就靠它 |
 | `zt_kl.json` | 2.0 MB | 涨停池涉及个股的日 K（含开盘价） |
 | `kl_store.json` | 748 KB | 跌停池涉及个股的日 K |
 | `bench.json` | 2.5 KB | 国证2000 / 中证全指 日收盘 |

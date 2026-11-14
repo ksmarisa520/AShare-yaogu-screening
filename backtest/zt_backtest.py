@@ -196,10 +196,19 @@ def main(argv=None):
 
     print('\n[2] Daily aggregated t-test (only %d independent observations)'
           % len(used))
-    tday(buy, 'gap', cost, 'P1 board->next open', 'idx_gap')
-    tday(buy, 'hold1', cost, 'P2 board->next close', 'idx_hold1')
-    tday(notopen, 'day1', cost, 'P3 next open->next close', 'idx_day1')
-    tday(notopen, 'hold2', cost, 'P4 next open->T+2', 'idx_hold2')
+    # Two benchmarks on purpose: ABS is what the account actually earns, EXC is
+    # what the strategy adds over just holding the index. They point opposite
+    # ways here -- the window was a falling market, so a losing long-only path
+    # can still look flat-to-positive against the index. Quote ABS for "does
+    # this make money", EXC for "does this add anything over beta".
+    tday(buy, 'gap', cost, 'P1 board->next open  (abs)', None)
+    tday(buy, 'gap', cost, 'P1 board->next open  (exc)', 'idx_gap')
+    tday(buy, 'hold1', cost, 'P2 board->next close (abs)', None)
+    tday(buy, 'hold1', cost, 'P2 board->next close (exc)', 'idx_hold1')
+    tday(notopen, 'day1', cost, 'P3 next open->close  (abs)', None)
+    tday(notopen, 'day1', cost, 'P3 next open->close  (exc)', 'idx_day1')
+    tday(notopen, 'hold2', cost, 'P4 next open->T+2    (abs)', None)
+    tday(notopen, 'hold2', cost, 'P4 next open->T+2    (exc)', 'idx_hold2')
 
     print('\n[3] Next-session distribution (n=%d)' % len(obs))
     v = [r['hold1'] for r in obs]

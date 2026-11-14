@@ -255,8 +255,8 @@ def main(argv=None):
              total_cost, '  ' + nm, 'bench_day1')
 
     print('\nNOTE: S3 only holds up on panic days; the full sample loses '
-          'significance at 0.4%% cost, and 78%% of the raw gain comes from the '
-          '22%% tail.\n      This is mean reversion on a liquidity premium, NOT '
+          'significance at 0.4% cost, and 78% of the raw gain comes from the '
+          '22% tail.\n      This is mean reversion on a liquidity premium, NOT '
           'a yaogu (momentum) setup.')
 
 
