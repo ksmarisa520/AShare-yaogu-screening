@@ -1,0 +1,11 @@
+# Normalize all text files to LF in the repo, whatever the local autocrlf setting
+* text=auto eol=lf
+
+# Data snapshots must stay byte-identical (they are hashed / diffed against the API)
+*.json -text
+
+# Scripts and docs
+*.py    text eol=lf
+*.md    text eol=lf
+*.csv   text eol=lf
+*.txt   text eol=lf
