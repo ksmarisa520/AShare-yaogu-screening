@@ -1,11 +1,15 @@
 # yaogu-screening
 
-**A 股妖股（连板 / 题材炒作股）启动特征 → 结束特征筛选卡 + 实测晋级率基准表 + 双向可执行性回测 + 可重跑脚本。**
+**A 股妖股（连板 / 题材炒作股）的实测研究 + 可重跑工具。**
 
-> 定位：这是**情绪仓筛选器**，不是选股器。妖股没有价值底，只有筹码结构与题材热度。
+14 个交易日、506 个首板样本的晋级率基准表，两个「到底能不能成交、扣成本能不能赚」的双向可执行性回测，以及一套盘后就能跑的筛选脚本。
+
+> 一句话结论：**筛选有效，交易无效。** 妖股特征确实能显著提高「次日继续封板」的概率，但涨停溢价几乎全部锁在「买不到」的一侧——假设全成交是 +1.44%/笔，实际可成交子集只有 −0.06%/笔。所以这套东西的定位是**情绪仓的排除器与纪律工具**，不是选股器，更不是下单信号。
 > 一句话用法：**盘后 15:30 跑一遍 → 得到隔日可打的候选 + 手上持有的要不要跑。**
 
-所有阈值都不是拍脑袋写的，而是用东方财富涨停池 / 炸板池 / 跌停池的真实数据，逐日 `当日池 → 次日池` 对撞统计出来的。更关键的是：**这份数据还被拿去做了两个"到底能不能成交、扣成本能不能赚"的回测，结论是——筛选有效，交易无效。** 见 [docs/03](docs/03_forward_backtest_2026-10.md) / [docs/04](docs/04_reverse_backtest_2026-10.md)。
+所有阈值都不是拍脑袋写的，而是用东方财富涨停池 / 炸板池 / 跌停池的真实数据，逐日 `当日池 → 次日池` 对撞统计出来的。回测细节见 [docs/03](docs/03_forward_backtest_2026-10.md) / [docs/04](docs/04_reverse_backtest_2026-10.md)。
+
+> `SKILL.md` 是一张**可选的** AI Agent 执行卡——把同样的规则压成一张速查表，带 YAML frontmatter，可被 skill loader 直接加载。**不用 AI Agent 的话可以完全忽略它**，仓库其他部分都不依赖它。
 
 ---
 
@@ -254,7 +258,7 @@ B    +8     3    09:30   11.6    4.96    42.8    35.9Yi    0    通信服务    
 ```
 yaogu-screening/
 ├── README.md                          ← 本文件
-├── SKILL.md                           ← Agent 技能卡版本（带 frontmatter，可直接被 skill loader 加载）
+├── SKILL.md                           ← 可选：AI Agent 执行卡（规则速查表，不懂可忽略）
 ├── scripts/
 │   ├── scan_zt_pool.py                ← 每日涨停池扫描：评分排序 + 退出预警 + JSON
 │   ├── yaogu_pick.py                  ← 二次核查：公告/龙虎榜/财报日/出售回购/K线形态
@@ -272,7 +276,7 @@ yaogu-screening/
     ├── 02_usage_and_data.md           ← 脚本参数、缓存机制、数据字段
     ├── 03_forward_backtest_2026-10.md ← 涨停侧能不能成交、扣成本能不能赚
     ├── 04_reverse_backtest_2026-10.md ← 跌停侧能不能做、只有恐慌日成立
-    ├── 05_revision_log_2026-10.md     ← 技能卡 5 条修订及落地状态
+    ├── 05_revision_log_2026-10.md     ← 筛选规则 5 条修订及落地状态
     └── 06_case_600661.md              ← 公司在涨停板上卖自己回购股票的全案
 ```
 
@@ -289,9 +293,9 @@ yaogu-screening/
 | `docs/04` 跌停反向回测 | `backtest/dt_backtest.py` | `data/dt_pools.json` + `kl_store.json` + `bench.json` + `bench_oc.json` | `python3 backtest/dt_backtest.py` |
 | `docs/05` 修订记录 | 人工整理 | 同上两份回测的明细 | 见 `data/zt_obs.json`、`dt_obs.json` |
 | `docs/06` 600661 案例 | `scripts/yaogu_pick.py` + 公告正文接口 | 实时抓取（无快照） | `python3 scripts/yaogu_pick.py 20261021` |
-| `SKILL.md` / 本 README 的表格 | 全部来自上面几份 | — | — |
+| 本 README / `SKILL.md` 的表格 | 全部来自上面几份 | — | — |
 
-**层级关系**：`SKILL.md` 是给 Agent 读的执行卡（带 frontmatter，可直接被 skill loader 加载）；本 README 是给人的门面；`docs/` 是论证过程；`scripts/` 是每日可跑的工具；`backtest/` 是一次性研究代码；`data/` 是这两者共用的冻结底稿。
+**层级关系**：本 README 是入口（结论 + 怎么跑）；`docs/` 是论证过程（每个数字的出处）；`scripts/` 是每日可跑的工具；`backtest/` 是一次性研究代码；`data/` 是这三者共用的冻结底稿。`SKILL.md` 是**可选的** AI Agent 封装（同一套规则的速查表），不影响上述任何部分。
 
 **数据来源**（全部是公开行情接口，无需账号）：
 
